@@ -1,40 +1,82 @@
-name: Inspect recovered source
+name: Import verified Lumera source
 on:
   push:
     branches: [recovery/source-import]
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
 jobs:
-  inspect:
+  import:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - name: Inspect saved transfer objects
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Verify and reconstruct source
         run: |
           python3 - <<'PY'
-          from pathlib import Path
-          import lzma, tarfile, io, hashlib
-          for p in sorted(Path('.recovery').glob('chunk-*')):
-              data = p.read_bytes()
-              print(p.name, len(data), data[:12].hex(), hashlib.sha256(data).hexdigest())
-              if data.startswith(b'\xfd7zXZ'):
-                  try:
-                      unpacked = lzma.decompress(data)
-                      print('DECOMPRESSED', len(unpacked), repr(unpacked[:120]))
-                      Path('.recovery/unpacked-' + p.name).write_bytes(unpacked)
-                      try:
-                          with tarfile.open(fileobj=io.BytesIO(unpacked)) as archive:
-                              print('MEMBERS', archive.getnames())
-                      except tarfile.TarError:
-                          pass
-                  except Exception as exc:
-                      print(type(exc).__name__, str(exc))
-              else:
-                  print('TEXT PREFIX', repr(data[:180]))
+          import base64, hashlib, io, lzma, os, struct, tarfile
+          from pathlib import Path, PurePosixPath
+          root = Path('.recovery')
+          parts = sorted(root.glob('delta-*.b64'))
+          assert len(parts) == 15, len(parts)
+          for p in parts:
+              print(p.name, p.stat().st_size, hashlib.sha256(p.read_bytes()).hexdigest())
+          delta = base64.b64decode(''.join(p.read_text().strip() for p in parts), validate=True)
+          assert hashlib.sha256(delta).hexdigest() == '171ca695e99749156c2df0eb790094b612cfb80973b0d6476cddc460290f5711', 'Delta checksum mismatch'
+          data = bytearray((root / 'chunk-00').read_bytes())
+          for i in range(1, 10):
+              for line in (root / f'chunk-{i:02d}').read_text().splitlines():
+                  data.extend(base64.b64decode(line.split(':', 1)[1], validate=True))
+          size, count = struct.unpack_from('>II', delta)
+          assert len(data) == size == 120000
+          cursor = 8
+          for _ in range(count):
+              offset, length = struct.unpack_from('>II', delta, cursor)
+              cursor += 8
+              assert offset + length <= size
+              data[offset:offset+length] = delta[cursor:cursor+length]
+              cursor += length
+          data.extend(delta[cursor:])
+          assert hashlib.sha256(data).hexdigest() == '6c92f529d7f94955d97ad1962eec947f4f89f9fb57312c39a6816c603171980f', 'Archive checksum mismatch'
+          raw = lzma.decompress(data)
+          assert hashlib.sha256(raw).hexdigest() == '4b170bc5dc192d947c7358f1512a1c28ef0545b7f57a8cb4302dc113a87a6d38', 'Tar checksum mismatch'
+          destination = Path(os.environ['RUNNER_TEMP']) / 'lumera-source'
+          destination.mkdir()
+          with tarfile.open(fileobj=io.BytesIO(raw)) as archive:
+              members = archive.getmembers()
+              assert len(members) == 145, len(members)
+              for member in members:
+                  path = PurePosixPath(member.name)
+                  assert member.isfile() and not path.is_absolute() and '..' not in path.parts and '.git' not in path.parts and '.github' not in path.parts, member.name
+                  target = destination.joinpath(*path.parts)
+                  target.parent.mkdir(parents=True, exist_ok=True)
+                  target.write_bytes(archive.extractfile(member).read())
+          print('Verified and extracted 145 source files')
           PY
+      - name: Create clean source branch
+        run: |
+          git fetch origin main
+          git switch -c import/lumera-pages origin/main
+          cp -a "$RUNNER_TEMP/lumera-source/." .
+      - name: Regression tests
+        run: node --experimental-sqlite --test tests/*.test.mjs
+      - name: Build Pages and standalone libraries
+        run: |
+          node scripts/build-pages.mjs
+          node scripts/package-modules.mjs
+      - name: Commit verified source
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .
+          git commit -m 'Import Lumera Studio with browser-local GitHub Pages support'
+          git push origin HEAD:refs/heads/import/lumera-pages
+          git log -1 --format='%H %s'
       - uses: actions/upload-artifact@v4
         with:
-          name: recovered-transfer
-          path: .recovery/
-          include-hidden-files: true
+          name: lumera-import-packages
+          path: artifacts/*.tgz
