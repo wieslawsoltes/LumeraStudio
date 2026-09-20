@@ -20,6 +20,7 @@ jobs:
         run: |
           node scripts/build-pages.mjs
           node scripts/package-modules.mjs
+          git archive --format=zip --output=artifacts/LumeraStudio-source.zip HEAD
       - name: Install browser test runner
         run: |
           python3 -m pip install playwright==1.63.0
@@ -31,6 +32,6 @@ jobs:
         with:
           name: lumera-validation
           path: |
-            artifacts/*.tgz
+            artifacts/*
             test-results/
           if-no-files-found: error

@@ -5,9 +5,11 @@
   "pages_increment": {
     "node_tests_passed": 37,
     "node_tests_failed": 0,
-    "static_build": "passed locally and in GitHub Actions",
+    "static_build": "Passed locally and in GitHub Actions",
     "standalone_packages_built": 4,
-    "browser_smoke": "GitHub Actions executes tests/browser-smoke.py; consult its report for the result. Local browser navigation was blocked by administrator URL policy.",
+    "browser_smoke": "Passed in GitHub Actions, Chromium 153.0.8010.12, CPU fallback",
+    "browser_validation_run": "https://github.com/wieslawsoltes/LumeraStudio/actions/runs/35511546117",
+    "first_pages_deployment_run": "https://github.com/wieslawsoltes/LumeraStudio/actions/runs/35511609713",
     "physical_gpu": "Not tested"
   }
 }

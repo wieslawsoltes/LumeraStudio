@@ -73,30 +73,40 @@ await client.flush(); // acknowledge pending edits
 client.dispose();
 ```
 
-The client uses the same `SceneStore` as the visible UI. It compacts edits relative to the acknowledged scene, debounces writes, polls revisions and presence, merges independent fields after revision conflicts, and flags conflicting changes to the same field. Pending edits are kept in a local recovery draft until acknowledged. A draft is a recovery aid; the SQL record is authoritative for saved projects.
+The client uses the same `SceneStore` as the visible UI. It compacts edits relative to the acknowledged scene, debounces writes, polls revisions and presence, merges independent fields after revision conflicts, and flags conflicting changes to the same field. Pending edits are kept in a local recovery draft until acknowledged. A draft is a recovery aid; the SQL record is authoritative for saved server-backed projects.
 
-`status`, `identity`, `presence`, `conflict`, and `recovery-error` events expose client state. The API provides project listing/creation/read/patch, named versions, presence, invitation joining and role management. Invite links expire after 24 hours. Owner/editor/viewer roles are checked server-side for every project request.
+`status`, `identity`, `presence`, `conflict`, and `recovery-error` events expose client state. The server API provides project listing/creation/read/patch, named versions, presence, invitation joining and role management. Invite links expire after 24 hours. Owner/editor/viewer roles are checked server-side for every project request.
 
 ## Embedding examples
 
 Run the local application, then open `/examples/renderer.html` or `/examples/controls.html`. They import only their required modules and do not load the studio UI.
 
-
 ## Browser-local storage adapter
 
-`@lumera/collaboration/browser` exports `IndexedProjectDatabase`, `BrowserProjectAPI`, and `BrowserProjectClient`. The adapter uses the same project, checkpoint and revision-check contract as `ProjectClient`, but persists data in a browser's IndexedDB database. It makes no HTTP requests and does not implement accounts, invitations or remote collaboration.
+`@lumera/collaboration/local` exports `IndexedDBProjectStorage` and `createLocalTransport`. Inject the transport into the same `ProjectClient`; there is no separate browser client class. It implements local projects, checkpoints and revision checks without HTTP requests, server accounts, invitations or remote collaboration.
 
 ```js
-import { BrowserProjectClient } from '@lumera/collaboration/browser';
-const client = new BrowserProjectClient(store, { namespace: '/LumeraStudio/' });
+import { ProjectClient } from '@lumera/collaboration';
+import { IndexedDBProjectStorage, createLocalTransport } from '@lumera/collaboration/local';
+
+const scope = '/LumeraStudio/';
+const storage = new IndexedDBProjectStorage({name: 'lumera-local-v1:' + scope});
+const client = new ProjectClient(store, {
+  transport: createLocalTransport({storage}),
+  recoveryKey: 'lumera-pages-recovery-v1:' + scope
+});
 await client.init();
-// Save the initial scene, or flush pending edits to an existing project.
 if (!client.id) await client.create();
 else await client.flush();
 // On teardown:
 client.dispose();
+await storage.close();
 ```
 
-Use a stable namespace per application. `/LumeraStudio/` and `/LumeraStudio/index.html` share the same namespace in the studio. Transactions serialize writes across tabs, and stale revisions are rejected rather than overwriting the current scene. `ProjectClient` also accepts `recoveryKey` to isolate recovery drafts in other applications.
+Use a stable namespace per application. The studio derives its scope from the module URL, so `/LumeraStudio/` and `/LumeraStudio/index.html` share storage. IndexedDB transactions serialize writes across tabs; stale revisions return a 409 conflict containing the current scene and revision. The transport rejects server-only invitations and role changes with a 501 error rather than simulating collaboration. Export scene files for portable backups; clearing browser data deletes local work.
 
-Optional browser checks: install the Python `playwright` package and Chromium, then run `python tests/browser-smoke.py` (set `CHROMIUM` for a custom executable). The script checks the repository-prefix URL, real IndexedDB persistence, checkpoints, tabs, scene downloads and the local-storage disclosure. It writes disposable results to `test-results/`.
+The `transport(path, method, body)` callback defaults to GET when method is omitted and returns the same JSON-shaped records as the server API. Errors expose `status` and `data` for conflict handling. The `recoveryKey` option isolates recovery drafts for embedded applications.
+
+## Browser validation
+
+Install `playwright==1.63.0` and Chromium, then run `python3 tests/browser-smoke.py` after building Pages. Set `CHROMIUM_PATH` for a custom executable. The test covers the repository-prefix URL, real IndexedDB save/reload and rename persistence, a second tab, stale-revision conflicts, the local-sharing disclosure, and absence of server API calls or page errors. It writes a screenshot and JSON report to `test-results/`. This test uses CPU fallback and does not qualify physical WebGPU hardware.
