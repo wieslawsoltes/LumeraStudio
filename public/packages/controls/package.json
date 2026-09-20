@@ -1,0 +1,15 @@
+{
+  "name": "@lumera/controls",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "import": "./index.js"
+    }
+  },
+  "license": "MIT",
+  "description": "Independent native web components for procedural node graphs and animation timelines",
+  "types": "index.d.ts"
+}
