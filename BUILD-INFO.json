@@ -3,11 +3,11 @@
   "original_source_commit": "d3dcd27d8e1929f783bb2b0bec78f13ce09ec23b",
   "original_archive_sha256": "6d22049765b8eec9c03ab335557639bceeea76cffc06641c1ecb9344db56af46",
   "pages_increment": {
-    "node_tests_passed": 33,
+    "node_tests_passed": 37,
     "node_tests_failed": 0,
-    "static_build": "passed",
+    "static_build": "passed locally and in GitHub Actions",
     "standalone_packages_built": 4,
-    "browser_smoke": "Blocked locally by administrator URL policy before page load",
+    "browser_smoke": "GitHub Actions executes tests/browser-smoke.py; consult its report for the result. Local browser navigation was blocked by administrator URL policy.",
     "physical_gpu": "Not tested"
   }
 }
