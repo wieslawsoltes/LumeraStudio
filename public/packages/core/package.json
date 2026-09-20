@@ -1,0 +1,15 @@
+{
+  "name": "@lumera/core",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "import": "./index.js"
+    }
+  },
+  "license": "MIT",
+  "description": "Serializable scene graph, procedural evaluation, command history and collaborative patches",
+  "types": "index.d.ts"
+}

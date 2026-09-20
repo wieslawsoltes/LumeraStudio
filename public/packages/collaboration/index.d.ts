@@ -1,0 +1,3 @@
+import type {SceneStore,Scene,Patch} from '@lumera/core';
+export function compactPatches(base:Scene,scene:Scene):Patch[];
+export class ProjectClient extends EventTarget{constructor(store:SceneStore,options?:{base?:string;interval?:number;recovery?:boolean;recoveryKey?:string;transport?:(path:string,method?:string,body?:any)=>Promise<any>});id:string|null;role:'owner'|'editor'|'viewer';status:string;pending:Patch[];revision:number;init():Promise<void>;create():Promise<{id:string;revision:number;role:string}>;open(id:string):Promise<void>;flush():Promise<void>;poll():Promise<void>;persistDraft():void;resetSession():void;dispose():void;request(path:string,method?:string,body?:unknown):Promise<any>}
