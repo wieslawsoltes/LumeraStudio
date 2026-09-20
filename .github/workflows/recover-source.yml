@@ -1,0 +1,40 @@
+name: Inspect recovered source
+on:
+  push:
+    branches: [recovery/source-import]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Inspect saved transfer objects
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import lzma, tarfile, io, hashlib
+          for p in sorted(Path('.recovery').glob('chunk-*')):
+              data = p.read_bytes()
+              print(p.name, len(data), data[:12].hex(), hashlib.sha256(data).hexdigest())
+              if data.startswith(b'\xfd7zXZ'):
+                  try:
+                      unpacked = lzma.decompress(data)
+                      print('DECOMPRESSED', len(unpacked), repr(unpacked[:120]))
+                      Path('.recovery/unpacked-' + p.name).write_bytes(unpacked)
+                      try:
+                          with tarfile.open(fileobj=io.BytesIO(unpacked)) as archive:
+                              print('MEMBERS', archive.getnames())
+                      except tarfile.TarError:
+                          pass
+                  except Exception as exc:
+                      print(type(exc).__name__, str(exc))
+              else:
+                  print('TEXT PREFIX', repr(data[:180]))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: recovered-transfer
+          path: .recovery/
+          include-hidden-files: true
